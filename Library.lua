@@ -30,9 +30,11 @@ local max = math.max
 local floor = math.floor
 local min = math.min
 local abs = math.abs
+
 if getgenv().library then
 	getgenv().library:unload()
 end
+
 getgenv().library = {
 	flags = {},
 	config_flags = {},
@@ -55,13 +57,14 @@ getgenv().library = {
 	},
 	font,
 }
+
 local flags = library.flags
 local config_flags = library.config_flags
 local themes = {
 	preset = {
-		["outline"] = rgb(32, 32, 38), --
-		["inline"] = rgb(60, 55, 75), --
-		["accent"] = rgb(255, 128, 0), --
+		["outline"] = rgb(32, 32, 38),
+		["inline"] = rgb(60, 55, 75),
+		["accent"] = rgb(255, 128, 0),
 		["contrast"] = rgb(35, 35, 47),
 		["text"] = rgb(170, 170, 170),
 		["unselected_text"] = rgb(90, 90, 90),
@@ -97,6 +100,7 @@ local themes = {
 		},
 	},
 }
+
 local keys = {
 	[Enum.KeyCode.LeftShift] = "LS",
 	[Enum.KeyCode.RightShift] = "RS",
@@ -143,7 +147,6 @@ local keys = {
 	[Enum.KeyCode.Slash] = "/",
 	[Enum.KeyCode.Asterisk] = "*",
 	[Enum.KeyCode.Plus] = "+",
-	[Enum.KeyCode.Period] = ".",
 	[Enum.KeyCode.Backquote] = "`",
 	[Enum.UserInputType.MouseButton1] = "MB1",
 	[Enum.UserInputType.MouseButton2] = "MB2",
@@ -151,16 +154,20 @@ local keys = {
 	[Enum.KeyCode.Escape] = "ESC",
 	[Enum.KeyCode.Space] = "SPC",
 }
+
 library.__index = library
+
 for _, path in next, library.folders do
 	makefolder(library.directory .. path)
 end
+
 if not isfile(library.directory .. "/fonts/main.ttf") then
 	writefile(
 		library.directory .. "/fonts/main.ttf",
 		game:HttpGet("https://github.com/i77lhm/storage/raw/refs/heads/main/fonts/fs-tahoma-8px.ttf")
 	)
 end
+
 local tahoma = {
 	name = "SmallestPixel7",
 	faces = {
@@ -172,43 +179,49 @@ local tahoma = {
 		},
 	},
 }
+
 if not isfile(library.directory .. "/fonts/main_encoded.ttf") then
 	writefile(library.directory .. "/fonts/main_encoded.ttf", http_service:JSONEncode(tahoma))
 end
+
 library.font = Font.new(getcustomasset(library.directory .. "/fonts/main_encoded.ttf"), Enum.FontWeight.Regular)
+
 -- functions
--- misc functions
 function library.to_screen_point(position)
 	return camera:WorldToViewportPoint(position)
 end
+
 function library:unload()
-	library.gui:Destroy()
-	for _, connection in library.connections do
+	if library.gui then
+		library.gui:Destroy()
+	end
+	for _, connection in next, library.connections do
 		connection:Disconnect()
 	end
-	for _, item in library.instances do
+	for _, item in next, library.instances do
 		item:Destroy()
 	end
 	getgenv().library = nil
 end
+
 function library:convert_string_rgb(str)
 	local values = {}
 	for value in string.gmatch(str, "[^,]+") do
 		table.insert(values, tonumber(value))
 	end
 	if #values == 4 then
-		local r, g, b, a = values[1], values[2], values[3], values[4]
-
-		return r, g, b, a
+		return values[1], values[2], values[3], values[4]
 	else
 		library:notification({ text = "Input a correct RGBA value (in the format 255, 255, 255, 0.5)" })
 	end
 end
+
 function library:connection(signal, callback)
 	local connection = signal:Connect(callback)
 	table.insert(library.connections, connection)
 	return connection
 end
+
 function library:make_resizable(frame)
 	local Frame = Instance.new("TextButton")
 	Frame.Position = dim2(1, -10, 1, -10)
@@ -219,10 +232,12 @@ function library:make_resizable(frame)
 	Frame.Parent = frame
 	Frame.BackgroundTransparency = 1
 	Frame.Text = ""
+
 	local resizing = false
 	local start_size
 	local start
 	local og_size = frame.Size
+
 	Frame.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			resizing = true
@@ -230,35 +245,37 @@ function library:make_resizable(frame)
 			start_size = frame.Size
 		end
 	end)
+
 	Frame.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			resizing = false
 		end
 	end)
-	library:connection(uis.InputChanged, function(input, game_event)
+
+	library:connection(uis.InputChanged, function(input)
 		if resizing and input.UserInputType == Enum.UserInputType.MouseMovement then
-			local mouse_pos = vec2(mouse.X, mouse.Y)
 			local viewport_x = camera.ViewportSize.X
 			local viewport_y = camera.ViewportSize.Y
 
-			current_size = dim2(
+			frame.Size = dim2(
 				start_size.X.Scale,
 				math.clamp(start_size.X.Offset + (input.Position.X - start.X), og_size.X.Offset, viewport_x),
 				start_size.Y.Scale,
 				math.clamp(start_size.Y.Offset + (input.Position.Y - start.Y), og_size.Y.Offset, viewport_y)
 			)
-			frame.Size = current_size
 		end
 	end)
 end
+
 function library:new_item(class, properties)
 	local ins = Instance.new(class)
-	for _, v in next, properties do
-		ins[_] = v
+	for prop, v in next, properties do
+		ins[prop] = v
 	end
 	table.insert(library.instances, ins)
 	return ins
 end
+
 function library:animation(text)
 	local pattern = {}
 	for i = 1, tonumber(text:len()) do
@@ -272,89 +289,84 @@ end
 
 function library:convert_enum(enum)
 	local enum_parts = {}
-
 	for part in string.gmatch(enum, "[%w_]+") do
 		table.insert(enum_parts, part)
 	end
 
 	local enum_table = Enum
 	for i = 2, #enum_parts do
-		local enum_item = enum_table[enum_parts[i]]
-
-		enum_table = enum_item
+		enum_table = enum_table[enum_parts[i]]
 	end
 
 	return enum_table
 end
 
-local http_service = game:GetService("HttpService")
-
 function library:config_list_update()
-    if not library.config_holder then
-        return
-    end
+	if not library.config_holder then
+		return
+	end
 
-    local list = {}
-    local config_path = library.directory .. "/configs"
+	local list = {}
+	local config_path = library.directory .. "/configs"
 
-    if not isfolder(config_path) then
-        makefolder(config_path)
-    end
+	if not isfolder(config_path) then
+		makefolder(config_path)
+	end
 
-    for _, file in next, listfiles(config_path) do
-        local normalized = file:gsub("\\", "/")
-        local parts = normalized:split("/")
-        local filename = parts[#parts]
-        
-        if filename:sub(-4) == ".cfg" then
-            local name = filename:sub(1, -5)
-            table.insert(list, name)
-        end
-    end
+	for _, file in next, listfiles(config_path) do
+		local normalized = file:gsub("\\", "/")
+		local parts = normalized:split("/")
+		local filename = parts[#parts]
 
-    library.config_holder:refresh_options(list)
+		if filename:sub(-4) == ".cfg" then
+			local name = filename:sub(1, -5)
+			table.insert(list, name)
+		end
+	end
+
+	library.config_holder:refresh_options(list)
 end
 
 function library:get_config()
-    local Config = {}
+	local Config = {}
 
-    for i, v in next, flags do
-        if type(v) == "table" and v.key then
-            Config[i] = { active = v.active, mode = v.mode, key = tostring(v.key) }
-        elseif type(v) == "table" and v.Transparency and v.Color then
-            local color_hex = "ffffff"
-            if typeof(v.Color) == "Color3" then
-                color_hex = v.Color:ToHex()
-            end
-            Config[i] = { Transparency = v.Transparency, Color = color_hex }
-        else
-            Config[i] = v
-        end
-    end
+	for i, v in next, flags do
+		if type(v) == "table" and v.key then
+			Config[i] = { active = v.active, mode = v.mode, key = tostring(v.key) }
+		elseif type(v) == "table" and v.Transparency and v.Color then
+			local color_hex = "ffffff"
+			if typeof(v.Color) == "Color3" then
+				color_hex = v.Color:ToHex()
+			end
+			Config[i] = { Transparency = v.Transparency, Color = color_hex }
+		else
+			Config[i] = v
+		end
+	end
 
-    return http_service:JSONEncode(Config)
+	return http_service:JSONEncode(Config)
 end
 
 function library:load_config(config_json)
-    local success, config = pcall(function() 
-        return http_service:JSONDecode(config_json) 
-    end)
-    
-    if not success then return end
+	local success, config = pcall(function()
+		return http_service:JSONDecode(config_json)
+	end)
 
-    for i, v in next, config do
-        local function_set = library.config_flags[i]
+	if not success then return end
 
-        if function_set then
-            if type(v) == "table" and v.Transparency and v.Color then
-                function_set(Color3.fromHex(v.Color), v.Transparency)
-            elseif type(v) == "table" and v.active ~= nil then
-                function_set(v)
-            else
-                function_set(v)
-            end
-        end
-    end
+	for i, v in next, config do
+		local function_set = library.config_flags[i]
+
+		if function_set then
+			if type(v) == "table" and v.Transparency and v.Color then
+				function_set(Color3.fromHex(v.Color), v.Transparency)
+			elseif type(v) == "table" and v.active ~= nil then
+				function_set(v)
+			else
+				function_set(v)
+			end
+		end
+	end
 end
 
 function library:round(number, float)
@@ -367,23 +379,15 @@ function library:apply_theme(instance, theme, property)
 end
 
 function library:update_theme(theme, color)
-	for _, property in next, themes.utility[theme] do
-		for m, object in next, property do
-			if object[_] == themes.preset[theme] or object.ClassName == "UIGradient" then
-				object[_] = color
+	for property_name, objects in next, themes.utility[theme] do
+		for _, object in next, objects do
+			if object[property_name] == themes.preset[theme] or object.ClassName == "UIGradient" then
+				object[property_name] = color
 			end
 		end
 	end
 
 	themes.preset[theme] = color
-end
-
-function library:connection(signal, callback)
-	local connection = signal:Connect(callback)
-
-	table.insert(library.connections, connection)
-
-	return connection
 end
 
 function library:create(instance, options)
@@ -395,6 +399,7 @@ function library:create(instance, options)
 
 	return ins
 end
+
 library.gui = library:create("ScreenGui", {
 	Enabled = true,
 	Parent = coregui,
@@ -402,6 +407,7 @@ library.gui = library:create("ScreenGui", {
 	DisplayOrder = 2,
 	ZIndexBehavior = 1,
 })
+
 function library:window(properties)
 	local cfg = {
 		name = properties.Name or properties.name or properties.Title or properties.title or "sp4m.wtf",
@@ -444,4 +450,12 @@ function library:window(properties)
 		Parent = inline1,
 		Name = "",
 		BackgroundTransparency = 0.5,
-		Position = UDimI'm having a hard time fulfilling your request. Can I help you with something else instead?
+		Position = UDim2.new(0, 0, 0, 0),
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+	})
+
+	return __holder
+end
+
+return library
