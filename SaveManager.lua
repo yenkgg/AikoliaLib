@@ -242,12 +242,11 @@ local SaveManager = {} do
             table.insert(data.objects, self.Parser[option.Type].Save(idx, option))
         end
 
-        local success, encoded = pcall(HttpService.JSONEncode, HttpService, data)
-        if not success then
-            return false, 'failed to encode data'
-        end
+        local encoded = HttpService:JSONEncode(data)
 
-        writefile(fullPath, encoded)
+        local success = pcall(writefile, fullPath, encoded)
+        if not success then return false, 'write file error' end
+
         return true
     end
 
@@ -257,30 +256,35 @@ local SaveManager = {} do
         end
         SaveManager:CheckFolderTree()
 
-        local file = self.Folder .. '/settings/' .. name .. '.json'
+        local fullPath = self.Folder .. '/settings/' .. name .. '.json'
         if SaveManager:CheckSubFolder(true) then
-            file = self.Folder .. "/settings/" .. self.SubFolder .. "/" .. name .. '.json'
+            fullPath = self.Folder .. "/settings/" .. self.SubFolder .. "/" .. name .. '.json'
         end
 
-        if not isfile(file) then return false, 'invalid file' end
-
-        local success, decoded = pcall(HttpService.JSONDecode, HttpService, readfile(file))
-        if not success then return false, 'decode error' end
-
-        if self.UseLoadingOrder == true and typeof(self.LoadingOrder) == "table" then
-            table.sort(decoded.objects, function(a, b)
-                local aIndex = table.find(self.LoadingOrder, a.type) or math.huge
-                local bIndex = table.find(self.LoadingOrder, b.type) or math.huge
-                return aIndex < bIndex
-            end)
+        if not isfile(fullPath) then
+            return false, 'config file not found'
         end
 
-        for _, option in decoded.objects do
-            if not option.type then continue end
-            if not self.Parser[option.type] then continue end
-            if self.Ignore[option.idx] then continue end
+        local success, data = pcall(function()
+            return HttpService:JSONDecode(readfile(fullPath))
+        end)
 
-            task.spawn(self.Parser[option.type].Load, option.idx, option) -- task.spawn() so the config loading wont get stuck.
+        if not success then
+            return false, 'corrupted config file'
+        end
+
+        if not data.objects or typeof(data.objects) ~= "table" then
+            return false, 'corrupted config file'
+        end
+
+        for i = 1, #data.objects do
+            local obj = data.objects[i]
+
+            if not obj.type or not self.Parser[obj.type] then
+                continue
+            end
+
+            self.Parser[obj.type].Load(obj.idx, obj)
         end
 
         return true
@@ -290,15 +294,18 @@ local SaveManager = {} do
         if (not name) then
             return false, 'no config file is selected'
         end
+        SaveManager:CheckFolderTree()
 
-        local file = self.Folder .. '/settings/' .. name .. '.json'
+        local fullPath = self.Folder .. '/settings/' .. name .. '.json'
         if SaveManager:CheckSubFolder(true) then
-            file = self.Folder .. "/settings/" .. self.SubFolder .. "/" .. name .. '.json'
+            fullPath = self.Folder .. "/settings/" .. self.SubFolder .. "/" .. name .. '.json'
         end
 
-        if not isfile(file) then return false, 'invalid file' end
+        if not isfile(fullPath) then
+            return false, 'config file not found'
+        end
 
-        local success = pcall(delfile, file)
+        local success = pcall(delfile, fullPath)
         if not success then return false, 'delete file error' end
 
         return true
@@ -528,6 +535,73 @@ local SaveManager = {} do
 
         -- self:LoadAutoloadConfig()
         self:SetIgnoreIndexes({ 'SaveManager_ConfigList', 'SaveManager_ConfigName' })
+    end
+
+    function SaveManager:BuildThemeConfigSection(tab)
+        assert(self.Library, 'SaveManager:BuildThemeConfigSection -> Must set SaveManager.Library')
+
+        local section = tab:AddLeftGroupbox('Theme Config')
+
+        section:AddInput('SaveManager_ThemeName', { Text = 'Theme name' })
+        section:AddButton('Save theme', function()
+            local name = self.Library.Options.SaveManager_ThemeName.Value
+
+            if name:gsub(' ', '') == '' then
+                self.Library:Notify('Invalid theme name (empty)', 2)
+                return
+            end
+
+            local success, err = self:Save(name)
+            if not success then
+                self.Library:Notify('Failed to save theme: ' .. err)
+                return
+            end
+
+            self.Library:Notify(string.format('Saved theme %q', name))
+            self.Library.Options.SaveManager_ThemeList:SetValues(self:RefreshConfigList())
+            self.Library.Options.SaveManager_ThemeList:SetValue(nil)
+        end)
+
+        section:AddDivider()
+
+        section:AddDropdown('SaveManager_ThemeList', { Text = 'Saved themes', Values = self:RefreshConfigList(), AllowNull = true })
+        section:AddButton('Load theme', function()
+            local name = self.Library.Options.SaveManager_ThemeList.Value
+
+            if not name then
+                self.Library:Notify('No theme selected', 2)
+                return
+            end
+
+            local success, err = self:Load(name)
+            if not success then
+                self.Library:Notify('Failed to load theme: ' .. err)
+                return
+            end
+
+            self.Library:Notify(string.format('Loaded theme %q', name))
+        end)
+
+        section:AddButton('Delete theme', function()
+            local name = self.Library.Options.SaveManager_ThemeList.Value
+
+            if not name then
+                self.Library:Notify('No theme selected', 2)
+                return
+            end
+
+            local success, err = self:Delete(name)
+            if not success then
+                self.Library:Notify('Failed to delete theme: ' .. err)
+                return
+            end
+
+            self.Library:Notify(string.format('Deleted theme %q', name))
+            self.Library.Options.SaveManager_ThemeList:SetValues(self:RefreshConfigList())
+            self.Library.Options.SaveManager_ThemeList:SetValue(nil)
+        end)
+
+        self:SetIgnoreIndexes({ 'SaveManager_ThemeList', 'SaveManager_ThemeName' })
     end
 
     SaveManager:BuildFolderTree()
